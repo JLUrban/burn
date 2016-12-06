@@ -132,14 +132,18 @@ def solve( data, out_path, mesh_objects, problem, z, z0 ):
             z_lst   = z.split( True )
            
             dx_s    = project(-grad( z_lst[-1] )*data.dt,
-                                VectorFunctionSpace(mesh, "CG", 2),
+                                VectorFunctionSpace(mesh, "CG", 1),
                                 solver_type="cg", preconditioner_type="ilu")
     
             #print dx_s.vector()[:].min(), dx_s.vector()[:].max()
             
             # temporary fix to prevent moving mesh for conduction problems
             if data.N > 1:
-                mesh.move( dx_s )
+                if dolfin_version() == '2016.1.0':
+                    # using newer ale method
+                    ALE.move( mesh, dx_s ) 
+                else:
+                    mesh.move( dx_s )
     
             # compute current mass on current mesh
             m = assemble( data.rho*dx( mesh ) )
