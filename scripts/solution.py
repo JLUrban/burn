@@ -139,7 +139,7 @@ def solve( data, out_path, mesh_objects, problem, z, z0 ):
             
             # temporary fix to prevent moving mesh for conduction problems
             if data.N > 1:
-                if dolfin_version() == '2016.1.0':
+                if any(dolfin_version() in s  for s in ['2016.1.0','2016.2.0']):
                     # using newer ale method
                     ALE.move( mesh, dx_s ) 
                 else:
