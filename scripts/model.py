@@ -136,22 +136,11 @@ def define_problem( data, mesh_objects ):
     bound_dict  = mesh_objects[2]
 
     # define transport problem function space
-    # Z_1 = FunctionSpace( mesh, "CG", 1 )    # temperature and component space
-    # Z_2 = FunctionSpace( mesh, "CG", 2 )    # potential function space
-    # Z   = MixedFunctionSpace( [Z_1]*data.N + [Z_2,] )
-    
-    W = VectorFunctionSpace(mesh, 'P', 2)
-    print 'W'
     P1 = FiniteElement('CG',mesh.ufl_cell(),1)
     P2 = FiniteElement('CG',mesh.ufl_cell(),2)
-    # element   = MixedElement( P1*P1*P2 )
-    print ' line 148 \n element'
-    
     Z = FunctionSpace(mesh, MixedElement([P1]*data.N + [P2]))
     
     # essential BCs
-    print "line 151 \ns"
-    
     bcs     = []
     for bc in data.bcs_te:
         bcs.append( DirichletBC( Z.sub(bc[0]),
