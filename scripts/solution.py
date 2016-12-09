@@ -32,16 +32,20 @@ def solve( data, out_path, mesh_objects, problem, z, z0 ):
     # ...set solver parameters
     prm = solver.parameters
     prm["linear_solver"]              = "lu"
-    prm["convergence_criterion"]      = "incremental"
+    prm["convergence_criterion"]      = "residual"
     prm["relative_tolerance"]         = 1e-6
-    prm["maximum_iterations"]         = 20
+    prm["maximum_iterations"]         = 100
     prm["relaxation_parameter"]       = 1.0
     prm["absolute_tolerance"]         = 1e-9
     prm["report"]                     = False
 
     # initial conditions
-    z0.interpolate(Constant(data.z_i + (10.0,)))
-    z.interpolate(Constant(data.z_i + (10.0,)))
+    if data.regress:
+        z0.interpolate(Constant(data.z_i + (10.0,)))
+        z.interpolate(Constant(data.z_i + (10.0,)))
+    else:
+        z0.interpolate(Constant(data.z_i))
+        z.interpolate(Constant(data.z_i))
 
     # set up output files
 
@@ -58,7 +62,7 @@ def solve( data, out_path, mesh_objects, problem, z, z0 ):
         z_lst = z.split( True )
 
         # save paraview data
-        for i in range(0, data.N + 1):
+        for i in range(0, data.N + int(data.regress)):
             pvd_files[i] << z_lst[i]
 
         # compute L_2 norm with exact solutions
@@ -109,7 +113,7 @@ def solve( data, out_path, mesh_objects, problem, z, z0 ):
         time_since_save = 0.0
     
         # save initial fields to Paraview files
-        for i in range(0, data.N + 1):
+        for i in range(0, data.N +int(data.regress)):
             pvd_files[i] << (z_lst[i], t)
     
         while (t < data.t_f):
@@ -130,20 +134,20 @@ def solve( data, out_path, mesh_objects, problem, z, z0 ):
             # move mesh
             #z_lst   = split( z )
             z_lst   = z.split( True )
-           
-            dx_s    = project(-grad( z_lst[-1] )*data.dt,
-                                VectorFunctionSpace(mesh, "CG", 1),
-                                solver_type="cg", preconditioner_type="ilu")
-    
-            #print dx_s.vector()[:].min(), dx_s.vector()[:].max()
             
+            if data.regress:
+
+                dx_s    = project(-grad( z_lst[-1] )*data.dt,
+                                    VectorFunctionSpace(mesh, "CG", 1),
+                                    solver_type="cg", preconditioner_type="ilu")
+
             # temporary fix to prevent moving mesh for conduction problems
-            if data.N > 1:
-                if any(dolfin_version() in s  for s in ['2016.1.0','2016.2.0']):
-                    # using newer ale method
-                    ALE.move( mesh, dx_s ) 
-                else:
-                    mesh.move( dx_s )
+                if data.N > 1:
+                    if any(dolfin_version() in s  for s in ['2016.1.0','2016.2.0']):
+                        # using newer ale method
+                        ALE.move( mesh, dx_s ) 
+                    else:
+                        mesh.move( dx_s )
     
             # compute current mass on current mesh
             m = assemble( data.rho*dx( mesh ) )
@@ -157,7 +161,7 @@ def solve( data, out_path, mesh_objects, problem, z, z0 ):
                 mlr  = -(m - m0)/data.dt
     
                 # save paraview data
-                for i in range(0, data.N + 1):
+                for i in range(0, data.N + int(data.regress)):
                     pvd_files[i] << (z_lst[i], t)
     
                 # save data to mass file

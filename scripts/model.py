@@ -59,17 +59,17 @@ def rhs_weak_form( data, mesh_objects, z, w ):
 
     # compute volatile diffusion mass flux
     # ...only if N > 1
-    if N > 1:
+    if data.regress:
+        if N > 1:
+            if data.regress:
+                j_v = -rho*D_v[0]*grad( z[1] )
 
-        j_v = -rho*D_v[0]*grad( z[1] )
-
-        for i in range(1, N_v):
-            i_z = i + 1     # index of equaiton in array of funciton spaces
-            j_i = -rho*D_v[i]*grad( z[i_z] )
-            j_v = j_v + j_i
-    else:
-
-        j_v = Constant( (0.0,)*num_dim )
+                for i in range(1, N_v):
+                    i_z = i + 1     # index of equaiton in array of funciton spaces
+                    j_i = -rho*D_v[i]*grad( z[i_z] )
+                    j_v = j_v + j_i
+            else:
+                j_v = Constant( (0.0,)*num_dim )
 
     # compute source terms
     s   = [0.]*(N - 1)              # volumetric mass generation rate, kg/m^3-s
@@ -93,32 +93,36 @@ def rhs_weak_form( data, mesh_objects, z, w ):
 
     # ...(1) energy equation
     F_T = -data.k( z )*inner( grad( z[0] ), grad( w[0] ) )*dx               \
-            - q_c*w[0]*dx                                                   \
-            - rho*data.c_p( z )*inner( grad( z[-1] ), grad( z[0] ) )*w[0]*dx
+            - q_c*w[0]*dx
+    if data.regress:
+        F_T = F_T - rho*data.c_p( z )*inner( grad( z[-1] ), grad( z[0] ) )*w[0]*dx
     F.append( F_T )
 
     # ...(2) volatile component transport equations
     for i in range(0, N_v):
         i_z = i + 1     # index of equaiton in array of funciton spaces
         F_i = -rho*D_v[i]*inner( grad( z[i_z] ), grad( w[i_z] ))*dx         \
-                   + s[i]*w[i_z]*dx                                         \
-                   - rho*inner( grad( z[-1] ), grad( z[i_z] ) )*w[i_z]*dx
+                   + s[i]*w[i_z]*dx
+        if data.regress:
+            F_i = F_i - rho*inner( grad( z[-1] ), grad( z[i_z] ) )*w[i_z]*dx
         F.append( F_i )
 
     # ...(3) stable componenet transport equations
     for i in range(N_v, N - 1):
         i_z = i + 1     # index of equaiton in array of funciton spaces
         F_i = -(z[i_z]/Y_s)*inner( j_v, grad( w[i_z] ) )*dx                 \
-                   + s[i]*w[i_z]*dx                                         \
-                   - rho*inner( grad( z[-1] ), grad( z[i_z] ) )*w[i_z]*dx
+                   + s[i]*w[i_z]*dx 
+        if data.regress:
+            F_i = F_i - rho*inner( grad( z[-1] ), grad( z[i_z] ) )*w[i_z]*dx
         F.append( F_i )
 
-    # ...(4) potential equation
-    alpha_m = 1000.*(0.2e-6)
-    F_phi = -alpha_m*inner( grad( z[-1] ), grad( w[-1] ) )*dx               \
-                - inner( grad( z[-1] ), grad( z[-1] ))*w[-1]*dx             \
-                + (w[-1]*alpha_m/(rho*Y_s))*dot( j_v, normal )*dss
-    F.append( F_phi )
+    if data.regress:
+        # ...(4) potential equation
+        alpha_m = 1000.*(0.2e-6)
+        F_phi = -alpha_m*inner( grad( z[-1] ), grad( w[-1] ) )*dx               \
+                    - inner( grad( z[-1] ), grad( z[-1] ))*w[-1]*dx             \
+                    + (w[-1]*alpha_m/(rho*Y_s))*dot( j_v, normal )*dss
+        F.append( F_phi )
 
     # ...apply natural boundary conditions
     for bc in data.bcs_tn:
@@ -137,8 +141,11 @@ def define_problem( data, mesh_objects ):
 
     # define transport problem function space
     P1 = FiniteElement('CG',mesh.ufl_cell(),1)
-    P2 = FiniteElement('CG',mesh.ufl_cell(),2)
-    Z = FunctionSpace(mesh, MixedElement([P1]*data.N + [P2]))
+    if data.regress:
+        P2 = FiniteElement('CG',mesh.ufl_cell(),2)
+        Z = FunctionSpace(mesh, MixedElement([P1]*data.N + [P2]))
+    else: 
+        Z = FunctionSpace(mesh, MixedElement([P1]*data.N))
     
     # essential BCs
     bcs     = []
